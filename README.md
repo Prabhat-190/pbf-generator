@@ -334,9 +334,3 @@ Password :
 
 ---
 
-## Author
-
-* Prabhat Kumar**
-* Software Engineering Intern
-* Indian Institute of Technology Kharagpur (Mathematics and Computing)
-
