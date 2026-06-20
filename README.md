@@ -2,34 +2,52 @@
 
 ## Project Overview
 
-This project simulates the ABT-to-NLP transaction settlement workflow using Spring Boot. It generates PBF transaction files, validates records, creates ZIP archives, stores processing metadata in H2 Database, performs mock SFTP transfers, and handles callback-based status updates.
+PBF Generator is a Spring Boot application that simulates the ABT-to-NLP transaction settlement workflow. It generates PBF transaction files, validates settlement records, creates ZIP archives, stores processing metadata in an H2 database, performs a mock SFTP transfer, and handles callback-based status updates.
 
-The implementation follows the PBF file specifications described in the ABT-TIBCO Integration Document and demonstrates an end-to-end file processing workflow.
+The implementation follows the PBF input file structure described in the ABT-TIBCO Integration Document and demonstrates an end-to-end backend file-processing workflow.
 
 ---
 
 ## Architecture Workflow
 
+### Processing Flow
+
 ```text
 Generate API
-      ↓
+    ↓
 Load Transaction Data
-      ↓
-Validation
-      ↓
-PBF Generation
-      ↓
-Metadata Persistence
-      ↓
-ZIP Creation
-      ↓
-Mock SFTP Transfer
-      ↓
+    ↓
+Validate Records
+    ↓
+Generate PBF File
+    ↓
+Save Metadata
+    ↓
+Create ZIP Archive
+    ↓
+Move ZIP to Mock SFTP
+    ↓
 Status = GENERATED
-      ↓
-Callback Processing
-      ↓
+    ↓
+Process Callback
+    ↓
 Status = VALIDATED
+```
+
+### Workflow Diagram
+
+```mermaid
+flowchart TD
+    A["Generate API"] --> B["Load Transaction Data"]
+    B --> C["Validation Layer"]
+    C --> D["Generate PBF File<br/>Header + Records + Trailer"]
+    D --> E["Save Metadata<br/>H2 Database"]
+    E --> F["Create ZIP Archive"]
+    F --> G["Mock SFTP Transfer<br/>sftp folder"]
+    G --> H["Status = GENERATED"]
+    H --> I["Callback API"]
+    I --> J["Update Metadata"]
+    J --> K["Status = VALIDATED"]
 ```
 
 ---
@@ -38,8 +56,9 @@ Status = VALIDATED
 
 * PBF file generation using Header, Record, and Trailer structure
 * Dynamic file naming to prevent overwriting
+* Four-digit file sequence generation
 * Transaction validation layer
-* ZIP file generation
+* ZIP archive generation
 * Year/month-based file storage
 * Metadata persistence using H2 database
 * Unique RequestId generation
@@ -47,8 +66,9 @@ Status = VALIDATED
 * Callback processing
 * Status tracking API
 * Health check API
-* SLF4J logging
-* Exception handling
+* SLF4J logging with Logback
+* Global exception handling
+* Unit tests for validation logic
 
 ---
 
@@ -57,13 +77,25 @@ Status = VALIDATED
 ### Header
 
 ```text
-H;PBF;YYYYMMDD;1234;HH.mm.ss
+H;PBF;YYYYMMDD;sequence;HH.mm.ss
+```
+
+Example:
+
+```text
+H;PBF;20260620;0001;20.06.56
 ```
 
 ### Record
 
 ```text
 R;txnRef;reversedTxnRef;businessDate;crn;txnType;beId;beName;txnValue
+```
+
+Example:
+
+```text
+R;TXN001;;20260514;1009999505;NOL CARD JOURNEY;12345;NA;10.00
 ```
 
 ### Trailer
@@ -170,7 +202,7 @@ curl http://localhost:8080/health
 
 ## Database Metadata
 
-The FILE_METADATA table stores:
+The `FILE_METADATA` table stores:
 
 * ID
 * Filename
@@ -184,7 +216,7 @@ The FILE_METADATA table stores:
 * Response Message
 * SFTP Sent Flag
 
-Example:
+Example final state:
 
 ```text
 STATUS = VALIDATED
@@ -198,29 +230,28 @@ SFTP_SENT = TRUE
 
 The application uses SLF4J with Spring Boot Logback.
 
-Examples:
+Example log statements:
 
 ```java
 logger.info("PBF generation started");
-logger.info("Validation completed successfully");
-logger.info("Metadata saved with requestId {}", requestId);
-logger.info("ZIP file created successfully");
+logger.debug("Loaded {} journey records for PBF generation", journeys.size());
+logger.info("Metadata saved with id {} and requestId {}", metadata.getId(), metadata.getRequestId());
 logger.info("ZIP moved to mock SFTP folder");
-logger.info("Callback processing completed");
+logger.error("PBF generation failed", exception);
 ```
 
-Log Levels:
+### Log Levels
 
-* INFO – Normal application flow
-* DEBUG – Technical details
-* WARN – Validation warnings
-* ERROR – Exceptions and failures
+* INFO - Normal application flow
+* DEBUG - Technical details such as record counts and file paths
+* WARN - Validation warnings
+* ERROR - Exceptions and failures
 
 ---
 
 ## Generated Output Locations
 
-Generated PBF Files:
+Generated PBF files:
 
 ```text
 uploads/<year>/<month>/
@@ -232,7 +263,7 @@ Example:
 uploads/2026/june/pbf_20260620204157_0001.pbf
 ```
 
-Mock SFTP Files:
+Mock SFTP ZIP files:
 
 ```text
 sftp/
@@ -254,7 +285,13 @@ Start the application:
 ./gradlew bootRun
 ```
 
-Open H2 Console:
+Run tests:
+
+```bash
+./gradlew test
+```
+
+Open the H2 Console:
 
 ```text
 http://localhost:8080/h2-console
@@ -263,9 +300,9 @@ http://localhost:8080/h2-console
 Database Details:
 
 ```text
-JDBC URL: jdbc:h2:mem:testdb
-Username: sa
-Password:
+JDBC URL : jdbc:h2:mem:testdb
+Username : sa
+Password :
 ```
 
 ---
@@ -274,31 +311,32 @@ Password:
 
 * Java 25
 * Spring Boot 3
+* Spring Web
 * Spring Data JPA
 * H2 Database
 * Gradle
 * SLF4J / Logback
+* JUnit 5
 
 ---
 
 ## Future Enhancements
 
-* Replace hardcoded sample data with CSV/API input
-* PostgreSQL integration
-* Real SFTP integration
-* Swagger/OpenAPI documentation
-* Docker deployment
-* Global exception handling
-* File download API
-* Checksum and reconciliation support
-* LPBF/response file processing
+* Replace hardcoded sample data with CSV/API/database input
+* Add PostgreSQL support for persistent metadata storage
+* Integrate with a real SFTP server
+* Add Swagger/OpenAPI documentation
+* Add Docker deployment support
+* Add file download API
+* Add checksum and reconciliation support
+* Add LPBF/response file processing
+* Add scheduler-based automatic settlement file generation
 
 ---
 
 ## Author
 
-Prabhat Kumar
-
+**Prabhat Kumar**
 Software Engineering Intern
-
 Indian Institute of Technology Kharagpur (Mathematics and Computing)
+
